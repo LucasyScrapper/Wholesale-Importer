@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wholesale Order Importer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f0f11; --surface: #18181c; --surface2: #222228; --border: #2e2e38;
+    --accent: #7c6af7; --accent-glow: rgba(124,106,247,0.15);
+    --text: #f0f0f4; --text-muted: #7a7a8c; --text-dim: #4a4a5a;
+    --success: #3ecf7e; --error: #f56565; --warning: #f6ad55;
+    --mono: 'JetBrains Mono', monospace;
+  }
+  body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+  header { padding: 18px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+  .logo-mark { width: 30px; height: 30px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; }
+  header h1 { font-size: 15px; font-weight: 600; letter-spacing: -0.02em; }
+  header span { font-size: 13px; color: var(--text-muted); margin-left: 4px; }
+  .main { flex: 1; display: grid; grid-template-columns: 300px 1fr; }
+  .sidebar { border-right: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; gap: 18px; overflow-y: auto; }
+  .section-label { font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+  input[type="text"], input[type="password"] {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 12px; font-size: 13px; font-family: inherit; color: var(--text);
+    outline: none; transition: border-color 0.15s; width: 100%;
+  }
+  input[type="text"]:focus, input[type="password"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+  input[type="password"] { font-family: var(--mono); letter-spacing: 0.05em; }
+  .token-wrap { position: relative; }
+  .token-wrap input { padding-right: 36px; }
+  .toggle-vis { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 13px; }
+  .divider { height: 1px; background: var(--border); flex-shrink: 0; }
+  .sku-grid { display: flex; flex-direction: column; gap: 7px; }
+  .sku-row { display: grid; grid-template-columns: 72px 1fr; gap: 8px; align-items: center; }
+  .sku-flavor { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+  .btn { padding: 9px 16px; border-radius: 8px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: inherit; }
+  .btn-primary { background: var(--accent); color: #fff; width: 100%; padding: 11px; }
+  .btn-primary:hover:not(:disabled) { background: #9080ff; }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+  .btn-sm:hover { border-color: var(--accent); color: var(--text); }
+  .content { padding: 20px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .top-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .top-bar .field { min-width: 0; }
+  .sheet-row { display: flex; gap: 10px; align-items: flex-end; }
+  .sheet-row .field { flex: 1; }
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .table-header { padding: 12px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .table-header h2 { font-size: 13px; font-weight: 600; }
+  .stats { display: flex; gap: 14px; }
+  .stat { font-size: 12px; color: var(--text-muted); }
+  .stat strong { color: var(--text); font-weight: 600; }
+  .actions-bar { display: flex; gap: 8px; align-items: center; padding: 8px 18px; border-bottom: 1px solid var(--border); }
+  .actions-bar .sel-label { font-size: 12px; color: var(--text-muted); margin-right: auto; }
+  .scrollable { overflow-y: auto; max-height: calc(100vh - 420px); }
+  .orders-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .orders-table th { padding: 9px 12px; text-align: left; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); border-bottom: 1px solid var(--border); background: var(--surface); position: sticky; top: 0; z-index: 1; }
+  .orders-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .orders-table tr:last-child td { border-bottom: none; }
+  .orders-table tr:hover td { background: var(--surface2); }
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 500; }
+  .badge-pending { background: rgba(122,122,140,0.15); color: var(--text-muted); }
+  .badge-running { background: rgba(124,106,247,0.15); color: var(--accent); }
+  .badge-done    { background: rgba(62,207,126,0.15);  color: var(--success); }
+  .badge-error   { background: rgba(245,101,101,0.15); color: var(--error); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .dot-pulse { animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
+  .qty-chips { display: flex; gap: 3px; flex-wrap: wrap; }
+  .chip { padding: 2px 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; font-size: 11px; font-family: var(--mono); color: var(--text-muted); }
+  .copy-link { font-family: var(--mono); font-size: 11px; color: var(--accent); text-decoration: none; cursor: pointer; border: none; background: none; padding: 0; }
+  .copy-link:hover { text-decoration: underline; }
+  .copy-btn { font-size: 10px; padding: 2px 7px; margin-left: 5px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; color: var(--text-muted); cursor: pointer; font-family: inherit; }
+  .copy-btn:hover { border-color: var(--accent); color: var(--text); }
+  .empty-state { padding: 50px 20px; text-align: center; color: var(--text-dim); }
+  .empty-state p { font-size: 13px; margin-top: 8px; }
+  .import-footer { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-top: 1px solid var(--border); }
+  .progress-bar-wrap { flex: 1; height: 3px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .progress-bar { height: 100%; background: var(--accent); border-radius: 99px; transition: width 0.3s ease; }
+  .btn-import { background: var(--accent); color: #fff; white-space: nowrap; }
+  .btn-import:hover:not(:disabled) { background: #9080ff; }
+  .btn-import:disabled { opacity: 0.4; cursor: not-allowed; }
+  .log-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .log-header { padding: 9px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .log-header span { font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .log-body { padding: 8px 14px; font-family: var(--mono); font-size: 11px; line-height: 1.7; overflow-y: auto; max-height: 110px; color: var(--text-muted); }
+  .log-line { display: flex; gap: 10px; }
+  .log-time { color: var(--text-dim); flex-shrink: 0; }
+  .log-ok   { color: var(--success); }
+  .log-err  { color: var(--error); }
+  .log-info { color: var(--accent); }
+  .row-selected td { background: rgba(124,106,247,0.06) !important; }
+  input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; }
+  .toggle-row { display: flex; align-items: center; gap: 8px; }
+  .toggle-row label { font-size: 12px; color: var(--text-muted); cursor: pointer; user-select: none; }
+  .switch { position: relative; display: inline-block; width: 34px; height: 18px; flex-shrink: 0; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; cursor: pointer; inset: 0; background: var(--surface2); border: 1px solid var(--border); border-radius: 99px; transition: 0.2s; }
+  .slider:before { content: ''; position: absolute; height: 12px; width: 12px; left: 2px; bottom: 2px; background: var(--text-dim); border-radius: 50%; transition: 0.2s; }
+  input:checked + .slider { background: var(--accent); border-color: var(--accent); }
+  input:checked + .slider:before { transform: translateX(16px); background: #fff; }
+  .notice { background: rgba(246,173,85,0.1); border: 1px solid rgba(246,173,85,0.25); border-radius: 8px; padding: 9px 12px; font-size: 11px; color: var(--warning); display: flex; gap: 8px; }
+  .customer-preview { font-size: 11px; color: var(--success); margin-top: 4px; min-height: 16px; }
+  .customer-error { color: var(--error); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark">📦</div>
+  <h1>Wholesale Importer <span>/ Tabs.co</span></h1>
+</header>
+
+<div class="main">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div>
+      <div class="section-label">Shopify Config</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div class="field">
+          <label>Store domain</label>
+          <input type="text" id="shopDomain" placeholder="your-store.myshopify.com">
+        </div>
+        <div class="field">
+          <label>Admin API token</label>
+          <div class="token-wrap">
+            <input type="password" id="shopToken" placeholder="shpat_...">
+            <button class="toggle-vis" onclick="toggleToken()">👁</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div>
+      <div class="section-label">Variant SKUs</div>
+      <div class="sku-grid">
+        <div class="sku-row"><span class="sku-flavor">Dark</span>    <input type="text" id="sku-dark"    value="play-chocolate-dark-1-ws"></div>
+        <div class="sku-row"><span class="sku-flavor">Pink</span>    <input type="text" id="sku-pink"    value="play-chocolate-pink-1-ws"></div>
+        <div class="sku-row"><span class="sku-flavor">Not Milk</span><input type="text" id="sku-nm"      value="play-chocolate-nm-1-ws"></div>
+        <div class="sku-row"><span class="sku-flavor">Variety</span> <input type="text" id="sku-variety" value="play-chocolate-variety-1-ws"></div>
+      </div>
+      <div class="notice" style="margin-top:10px;">
+        <span>⚠</span><span>Confirm SKUs match your Shopify products before first import.</span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <button class="btn btn-primary" onclick="saveConfig()">Save config</button>
+  </aside>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- Top bar: customer link + sheet URL -->
+    <div class="top-bar">
+      <div class="field">
+        <label style="font-size:12px;font-weight:500;color:var(--text-muted);">Customer link (Shopify admin URL)</label>
+        <input type="text" id="customerUrl" placeholder="https://your-store.myshopify.com/admin/customers/123456" oninput="onCustomerInput()">
+        <div class="customer-preview" id="customerPreview"></div>
+      </div>
+      <div class="field">
+        <label style="font-size:12px;font-weight:500;color:var(--text-muted);">PO numbers</label>
+        <div class="toggle-row" style="margin-top:6px;">
+          <label class="switch"><input type="checkbox" id="poToggle" checked><span class="slider"></span></label>
+          <label for="poToggle">This sheet has PO numbers</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="sheet-row">
+      <div class="field">
+        <label style="font-size:12px;font-weight:500;color:var(--text-muted);">Google Sheet URL</label>
+        <input type="text" id="sheetUrl" placeholder="https://docs.google.com/spreadsheets/d/...">
+      </div>
+      <button class="btn btn-sm" onclick="loadSheet()">Load sheet</button>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+      <div class="table-header">
+        <h2>Orders</h2>
+        <div class="stats">
+          <div class="stat">Loaded: <strong id="stat-total">0</strong></div>
+          <div class="stat">Done: <strong id="stat-done" style="color:var(--success)">0</strong></div>
+          <div class="stat">Errors: <strong id="stat-err" style="color:var(--error)">0</strong></div>
+        </div>
+      </div>
+
+      <div class="actions-bar" id="actionsBar" style="display:none;">
+        <span class="sel-label" id="selectionLabel">0 selected</span>
+        <button class="btn btn-sm" onclick="selectAll()">Select all pending</button>
+        <button class="btn btn-sm" onclick="clearSelection()">Clear</button>
+      </div>
+
+      <div class="scrollable">
+        <table class="orders-table">
+          <thead>
+            <tr>
+              <th style="width:30px;"><input type="checkbox" id="checkAll" onchange="toggleAll(this)"></th>
+              <th>Invoice</th>
+              <th>Store</th>
+              <th>Items</th>
+              <th>Shipping</th>
+              <th>PO</th>
+              <th>Status</th>
+              <th>Order link</th>
+            </tr>
+          </thead>
+          <tbody id="ordersBody">
+            <tr><td colspan="8">
+              <div class="empty-state"><div style="font-size:32px;">📋</div><p>Load a Google Sheet to see orders here.</p></div>
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="import-footer">
+        <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+        <span id="progressLabel" style="font-size:12px;color:var(--text-muted);white-space:nowrap;"></span>
+        <button class="btn btn-import btn" id="importBtn" onclick="startImport()" disabled>Import selected</button>
+      </div>
+    </div>
+
+    <!-- Log -->
+    <div class="log-panel">
+      <div class="log-header">
+        <span>Log</span>
+        <button class="btn btn-sm" style="padding:3px 9px;font-size:11px;" onclick="clearLog()">Clear</button>
+      </div>
+      <div class="log-body" id="logBody">
+        <div class="log-line"><span class="log-time">--:--:--</span><span>Ready. Fill in config, paste a customer link, then load a sheet.</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+let orders   = [];
+let varCache = {};
+let importing = false;
+
+const SHIPPING_MAP = {
+  'customer ground':          'Customer Ground Shipping',
+  'customer ground shipping': 'Customer Ground Shipping',
+  'fedex overnight standard': 'FedEx Standard Overnight',
+  'fedex standard overnight': 'FedEx Standard Overnight',
+};
+function mapShipping(raw) {
+  if (!raw) return 'Customer Ground Shipping';
+  return SHIPPING_MAP[raw.trim().toLowerCase()] || raw.trim();
+}
+
+// ─── Customer URL ─────────────────────────────────────────────────────────────
+function extractCustomerId(url) {
+  if (!url) return null;
+  const m = url.match(/\/customers\/(\d+)/);
+  return m ? m[1] : null;
+}
+
+function onCustomerInput() {
+  const url = document.getElementById('customerUrl').value.trim();
+  const preview = document.getElementById('customerPreview');
+  if (!url) { preview.textContent = ''; return; }
+  const id = extractCustomerId(url);
+  if (id) {
+    preview.className = 'customer-preview';
+    preview.textContent = `Customer ID: ${id}`;
+  } else {
+    preview.className = 'customer-preview customer-error';
+    preview.textContent = 'Could not find customer ID in this URL.';
+  }
+}
+
+// ─── Config ───────────────────────────────────────────────────────────────────
+function saveConfig() {
+  const domain = document.getElementById('shopDomain').value.trim();
+  const token  = document.getElementById('shopToken').value.trim();
+  if (!domain || !token) { log('Fill in domain and token first.', 'err'); return; }
+  localStorage.setItem('ws_domain',      domain);
+  localStorage.setItem('ws_token',       token);
+  localStorage.setItem('ws_sku_dark',    document.getElementById('sku-dark').value.trim());
+  localStorage.setItem('ws_sku_pink',    document.getElementById('sku-pink').value.trim());
+  localStorage.setItem('ws_sku_nm',      document.getElementById('sku-nm').value.trim());
+  localStorage.setItem('ws_sku_variety', document.getElementById('sku-variety').value.trim());
+  log('Config saved.', 'ok');
+}
+
+function loadConfig() {
+  const f = (k,el) => { const v = localStorage.getItem(k); if (v) document.getElementById(el).value = v; };
+  f('ws_domain','shopDomain'); f('ws_token','shopToken');
+  f('ws_sku_dark','sku-dark'); f('ws_sku_pink','sku-pink');
+  f('ws_sku_nm','sku-nm'); f('ws_sku_variety','sku-variety');
+}
+
+function getCfg() {
+  return {
+    domain: document.getElementById('shopDomain').value.trim(),
+    token:  document.getElementById('shopToken').value.trim(),
+    skus: {
+      dark:    document.getElementById('sku-dark').value.trim(),
+      pink:    document.getElementById('sku-pink').value.trim(),
+      nm:      document.getElementById('sku-nm').value.trim(),
+      variety: document.getElementById('sku-variety').value.trim(),
+    }
+  };
+}
+
+function toggleToken() {
+  const inp = document.getElementById('shopToken');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+// ─── Sheet ────────────────────────────────────────────────────────────────────
+async function loadSheet() {
+  const url = document.getElementById('sheetUrl').value.trim();
+  if (!url) { log('Paste a Google Sheet URL first.', 'err'); return; }
+  const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (!match) { log('Could not parse Sheet ID from URL.', 'err'); return; }
+  const gid = (url.match(/gid=(\d+)/) || [])[1] || '0';
+  const csv = `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv&gid=${gid}`;
+  log('Fetching sheet…', 'info');
+  try {
+    const resp = await fetch(csv);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} — make sure sheet is set to "Anyone with the link can view".`);
+    parseCSV(await resp.text());
+  } catch(e) { log(`Sheet load failed: ${e.message}`, 'err'); }
+}
+
+function parseCSV(text) {
+  const rows = [];
+  let inQ = false, cur = '', fields = [];
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '"') { inQ = !inQ; }
+    else if (c === ',' && !inQ) { fields.push(cur); cur = ''; }
+    else if ((c === '\n' || c === '\r') && !inQ) {
+      if (cur || fields.length) { fields.push(cur); rows.push(fields); fields = []; cur = ''; }
+      if (c === '\r' && text[i+1] === '\n') i++;
+    } else { cur += c; }
+  }
+  if (cur || fields.length) { fields.push(cur); rows.push(fields); }
+  if (rows.length < 2) { log('Sheet appears empty.', 'err'); return; }
+
+  let hi = 0;
+  for (let i = 0; i < Math.min(5, rows.length); i++) {
+    if (rows[i].some(c => /invoice/i.test(c) || /^date$/i.test(c))) { hi = i; break; }
+  }
+  const headers = rows[hi].map(h => h.trim().toLowerCase());
+  log(`Headers: ${headers.join(', ')}`, 'info');
+
+  const ci = name => {
+    const p = {
+      invoice: /invoice/i, store: /store/i,
+      dark: /^dark$/i, pink: /^pink$/i, notmilk: /not.?milk|notmilk/i, variety: /variety/i,
+      unitprice: /unit.?price/i, shipping: /shipping.?box|ship.?cost|total.?ship/i,
+      address: /^address$/i, shippingmethod: /shipping.?method/i, po: /^po/i,
+    };
+    return headers.findIndex(h => p[name] && p[name].test(h));
+  };
+  const idx = {};
+  ['invoice','store','dark','pink','notmilk','variety','unitprice','shipping','address','shippingmethod','po'].forEach(k => idx[k] = ci(k));
+
+  const usePO = document.getElementById('poToggle').checked;
+  orders = [];
+  for (let i = hi + 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || r.every(c => !c.trim())) continue;
+    const get = k => idx[k] >= 0 ? (r[idx[k]] || '').trim() : '';
+    const invoice = get('invoice');
+    if (!invoice) continue;
+    const qtys = { dark: parseInt(get('dark'))||0, pink: parseInt(get('pink'))||0, nm: parseInt(get('notmilk'))||0, variety: parseInt(get('variety'))||0 };
+    if (qtys.dark + qtys.pink + qtys.nm + qtys.variety === 0) continue;
+    orders.push({
+      invoice, store: get('store'), qtys,
+      unitPrice: parseFloat(get('unitprice')) || 12.5,
+      shipCost:  parseFloat(get('shipping'))  || 0,
+      address:   get('address'),
+      shippingMethod: mapShipping(get('shippingmethod')),
+      po: usePO ? get('po') : '',
+      status: 'pending', draftId: null, orderId: null, orderName: null, orderUrl: null, error: null, selected: false,
+    });
+  }
+  log(`Parsed ${orders.length} valid orders.`, 'ok');
+  renderTable(); updateStats();
+  document.getElementById('actionsBar').style.display = 'flex';
+  document.getElementById('importBtn').disabled = false;
+}
+
+// ─── Table ────────────────────────────────────────────────────────────────────
+function renderTable() {
+  const tbody = document.getElementById('ordersBody');
+  if (!orders.length) {
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div style="font-size:32px;">📋</div><p>No orders found.</p></div></td></tr>';
+    return;
+  }
+  const cfg = getCfg();
+  tbody.innerHTML = orders.map((o, i) => {
+    const chips = [];
+    if (o.qtys.dark)    chips.push(`<span class="chip">${o.qtys.dark}× Dark</span>`);
+    if (o.qtys.pink)    chips.push(`<span class="chip">${o.qtys.pink}× Pink</span>`);
+    if (o.qtys.nm)      chips.push(`<span class="chip">${o.qtys.nm}× NM</span>`);
+    if (o.qtys.variety) chips.push(`<span class="chip">${o.qtys.variety}× Var</span>`);
+
+    const badge =
+      o.status==='pending' ? '<span class="badge badge-pending"><span class="dot"></span>Pending</span>' :
+      o.status==='running' ? '<span class="badge badge-running"><span class="dot dot-pulse"></span>Processing…</span>' :
+      o.status==='done'    ? '<span class="badge badge-done"><span class="dot"></span>Done</span>' :
+      `<span class="badge badge-error" title="${o.error||''}"><span class="dot"></span>Error</span>`;
+
+    let linkCell = '<span style="color:var(--text-dim)">—</span>';
+    if (o.orderUrl) {
+      linkCell = `<a class="copy-link" href="${o.orderUrl}" target="_blank">${o.orderName||o.orderId}</a><button class="copy-btn" onclick="copyLink(${i})">Copy</button>`;
+    }
+
+    const disabled = o.status === 'done' ? 'disabled' : '';
+    return `<tr class="${o.selected?'row-selected':''}">
+      <td><input type="checkbox" ${disabled} ${o.selected?'checked':''} onchange="toggleRow(${i},this)"></td>
+      <td style="font-family:var(--mono);font-size:11px;">${o.invoice}</td>
+      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${o.store}">${o.store}</td>
+      <td><div class="qty-chips">${chips.join('')}</div></td>
+      <td style="font-size:11px;white-space:nowrap;">$${o.shipCost.toFixed(2)} · ${o.shippingMethod}</td>
+      <td style="font-family:var(--mono);font-size:11px;">${o.po||'—'}</td>
+      <td>${badge}</td>
+      <td>${linkCell}</td>
+    </tr>`;
+  }).join('');
+}
+
+function updateStats() {
+  document.getElementById('stat-total').textContent = orders.length;
+  document.getElementById('stat-done').textContent  = orders.filter(o=>o.status==='done').length;
+  document.getElementById('stat-err').textContent   = orders.filter(o=>o.status==='error').length;
+}
+
+function copyLink(i) {
+  if (orders[i].orderUrl) {
+    navigator.clipboard.writeText(orders[i].orderUrl).then(() => log(`Copied link for ${orders[i].invoice}`, 'ok'));
+  }
+}
+
+// ─── Selection ────────────────────────────────────────────────────────────────
+function toggleRow(i,cb) { orders[i].selected=cb.checked; updateSelectionLabel(); renderTable(); }
+function toggleAll(cb)   { orders.forEach(o=>{ if(o.status!=='done') o.selected=cb.checked; }); updateSelectionLabel(); renderTable(); }
+function selectAll()     { orders.forEach(o=>{ if(o.status==='pending'||o.status==='error') o.selected=true; }); updateSelectionLabel(); renderTable(); }
+function clearSelection(){ orders.forEach(o=>o.selected=false); updateSelectionLabel(); renderTable(); }
+function updateSelectionLabel() {
+  const n = orders.filter(o=>o.selected).length;
+  document.getElementById('selectionLabel').textContent = `${n} selected`;
+  document.getElementById('importBtn').disabled = n===0 || importing;
+}
+
+// ─── Shopify API ──────────────────────────────────────────────────────────────
+async function shopifyFetch(method, path, body) {
+  const cfg = getCfg();
+  const proxyBase = "https://shopify-proxy.lucas-090.workers.dev";
+  const targetUrl = `https://${cfg.domain}/admin/api/2024-01/${path}`;
+  const resp = await fetch(`${proxyBase}?url=${encodeURIComponent(targetUrl)}`, {
+    method,
+    headers: { 'X-Shopify-Access-Token': cfg.token, 'Content-Type': 'application/json' },
+    ...(body ? { body: JSON.stringify(body) } : {})
+  });
+  if (!resp.ok) {
+    const txt = await resp.text();
+    throw new Error(`Shopify ${resp.status}: ${txt.substring(0,300)}`);
+  }
+  return resp.json();
+}
+
+async function resolveVariantId(sku) {
+  if (varCache[sku]) return varCache[sku];
+  const data = await shopifyFetch('GET', `variants.json?sku=${encodeURIComponent(sku)}&limit=1`);
+  if (data.variants && data.variants.length > 0) { varCache[sku] = data.variants[0].id; return data.variants[0].id; }
+  throw new Error(`No variant found for SKU "${sku}"`);
+}
+
+// ─── Order creation: draft → complete ────────────────────────────────────────
+async function processOrder(order) {
+  const cfg = getCfg();
+  const customerId = extractCustomerId(document.getElementById('customerUrl').value.trim());
+
+  // 1. Build line items
+  const lineItems = [];
+  const flavors = [
+    { sku: cfg.skus.dark,    qty: order.qtys.dark    },
+    { sku: cfg.skus.pink,    qty: order.qtys.pink    },
+    { sku: cfg.skus.nm,      qty: order.qtys.nm      },
+    { sku: cfg.skus.variety, qty: order.qtys.variety },
+  ];
+  for (const f of flavors) {
+    if (f.qty <= 0) continue;
+    const variantId = await resolveVariantId(f.sku);
+    lineItems.push({ variant_id: variantId, quantity: f.qty });
+  }
+  if (order.po) {
+    lineItems.push({ title: `PO ${order.po}`, price: '0.00', quantity: 1, requires_shipping: false, taxable: false });
+  }
+
+  const addr = parseAddress(order.address, order.store);
+
+  // 2. Create draft order
+  const draftPayload = {
+    draft_order: {
+      line_items: lineItems,
+      applied_discount: { value_type: 'percentage', value: '100', title: 'Wholesale', description: 'Wholesale 100%' },
+      shipping_address: addr,
+      billing_address:  addr,
+      ...(customerId ? { customer: { id: customerId } } : {}),
+      shipping_line: { title: order.shippingMethod, price: order.shipCost.toFixed(2), custom: true },
+      tags: 'Wholesale',
+      note: order.invoice,
+      send_invoice: false,
+    }
+  };
+  const draftResult = await shopifyFetch('POST', 'draft_orders.json', draftPayload);
+  const draftId = draftResult.draft_order.id;
+  order.draftId = draftId;
+  log(`Draft created for ${order.invoice} (ID ${draftId}), completing…`, 'info');
+
+  // 3. Complete draft → marks as paid, creates final order
+  const completeResult = await shopifyFetch('PUT', `draft_orders/${draftId}/complete.json?payment_pending=false`);
+  const finalOrder = completeResult.draft_order;
+
+  // order_id is populated on the draft after completion
+  const finalOrderId = finalOrder.order_id;
+  if (!finalOrderId) throw new Error('Draft completed but order_id not returned.');
+
+  // 4. Fetch the final order to get order number
+  const orderResult = await shopifyFetch('GET', `orders/${finalOrderId}.json`);
+  const shopifyOrder = orderResult.order;
+
+  order.orderId   = shopifyOrder.id;
+  order.orderName = shopifyOrder.name;
+  order.orderUrl  = `https://${cfg.domain}/admin/orders/${shopifyOrder.id}`;
+}
+
+function parseAddress(raw, storeName) {
+  const base = { first_name: storeName, last_name: '', country: 'United States' };
+  if (!raw) return { ...base, address1: '', city: '', province: '', zip: '' };
+  const m = raw.match(/^(.+),\s*([^,]+?)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/);
+  if (m) return { ...base, address1: m[1].trim(), city: m[2].trim(), province: m[3].trim(), zip: m[4].trim() };
+  return { ...base, address1: raw, city: '', province: '', zip: '' };
+}
+
+// ─── Import loop ──────────────────────────────────────────────────────────────
+async function startImport() {
+  if (importing) return;
+  const cfg = getCfg();
+  if (!cfg.domain || !cfg.token) { log('Set Shopify domain and token first.', 'err'); return; }
+
+  const customerUrl = document.getElementById('customerUrl').value.trim();
+  if (!customerUrl || !extractCustomerId(customerUrl)) {
+    log('Paste a valid customer link before importing.', 'err'); return;
+  }
+
+  const selected = orders.filter(o => o.selected && o.status !== 'done');
+  if (!selected.length) { log('No orders selected.', 'err'); return; }
+
+  importing = true;
+  document.getElementById('importBtn').disabled = true;
+  log(`Starting import of ${selected.length} orders…`, 'info');
+
+  let done = 0;
+  for (const order of selected) {
+    order.status = 'running';
+    renderTable();
+    try {
+      await processOrder(order);
+      order.status   = 'done';
+      order.selected = false;
+      log(`✓ ${order.invoice} → ${order.orderName} — ${order.orderUrl}`, 'ok');
+    } catch(e) {
+      order.status = 'error';
+      order.error  = e.message;
+      log(`✗ ${order.invoice}: ${e.message}`, 'err');
+    }
+    done++;
+    document.getElementById('progressBar').style.width   = Math.round(done/selected.length*100)+'%';
+    document.getElementById('progressLabel').textContent = `${done} / ${selected.length}`;
+    renderTable(); updateStats();
+    await new Promise(r => setTimeout(r, 800));
+  }
+
+  importing = false;
+  document.getElementById('importBtn').disabled = false;
+  log(`Import complete. ${orders.filter(o=>o.status==='done').length} done, ${orders.filter(o=>o.status==='error').length} errors.`, 'ok');
+}
+
+// ─── Log ──────────────────────────────────────────────────────────────────────
+function log(msg, type='') {
+  const body = document.getElementById('logBody');
+  const now  = new Date().toTimeString().slice(0,8);
+  const cls  = type==='ok'?'log-ok':type==='err'?'log-err':type==='info'?'log-info':'';
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = `<span class="log-time">${now}</span><span class="${cls}">${msg}</span>`;
+  body.appendChild(line);
+  body.scrollTop = body.scrollHeight;
+}
+function clearLog() { document.getElementById('logBody').innerHTML=''; }
+
+loadConfig();
+</script>
+</body>
+</html>
