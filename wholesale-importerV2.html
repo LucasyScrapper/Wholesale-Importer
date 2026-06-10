@@ -462,8 +462,7 @@ function updateSelectionLabel() {
 async function shopifyFetch(method, path, body) {
   const cfg = getCfg();
   const proxyBase = "https://shopify-proxy.lucas-090.workers.dev";
-  const targetUrl = `https://${cfg.domain}/admin/api/2024-01/${path}`;
-  const resp = await fetch(`${proxyBase}?url=${encodeURIComponent(targetUrl)}`, {
+  const resp = await fetch(`${proxyBase}?path=${encodeURIComponent(path)}`, {
     method,
     headers: { 'X-Shopify-Access-Token': cfg.token, 'Content-Type': 'application/json' },
     ...(body ? { body: JSON.stringify(body) } : {})
